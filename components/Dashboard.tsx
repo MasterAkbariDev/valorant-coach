@@ -6,7 +6,7 @@ import CoachLoading, { SearchLoading } from "@/components/CoachLoading";
 import RatingBadge from "@/components/RatingBadge";
 import { AbilityCasts, AgentPortrait, MapThumb, RankIcon, agentRole } from "@/components/ValorantMedia";
 import { useValorantContent } from "@/hooks/useValorantContent";
-import { adviceIsUsable } from "@/lib/gemini/advice";
+import { adviceIsUsable, adviceLooksSame } from "@/lib/gemini/advice";
 import { regionLabel, REGION_OPTIONS } from "@/lib/regions";
 import { poolRating, ratingMeta } from "@/lib/stats/rating";
 import {
@@ -38,6 +38,10 @@ function rrColor(value?: number | null) {
   if (value > 0) return "var(--good)";
   if (value < 0) return "var(--bad)";
   return "var(--muted)";
+}
+
+function matchFingerprint(matches?: { matchId: string }[]) {
+  return (matches ?? []).map((match) => match.matchId).join("|");
 }
 
 const STATS: {
@@ -97,14 +101,14 @@ const SEVERITY: Record<string, { label: string; color: string }> = {
 export default function Dashboard() {
   const content = useValorantContent();
   const [theme, setTheme] = useState<ThemeId>("crimson");
-  const [riotId, setRiotId] = useState("not HIM#8585");
+  const [riotId, setRiotId] = useState("");
   const [region, setRegion] = useState("eu");
   const [matches, setMatches] = useState<MatchesPayload | null>(null);
   const [advice, setAdvice] = useState<AnalyzePayload | null>(null);
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [coaching, setCoaching] = useState(false);
   const [fromCache, setFromCache] = useState(false);
-  const [notesFresh, setNotesFresh] = useState(false);
+  const [notesAge, setNotesAge] = useState<"new" | "same" | "old">("old");
   const [fetchedAt, setFetchedAt] = useState(0);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -155,7 +159,7 @@ export default function Dashboard() {
     const stored = session.advice;
     setAdvice(stored?.ok && !adviceIsUsable(stored.advice) ? null : stored);
     setFromCache(cached);
-    setNotesFresh(false);
+    setNotesAge("old");
     setFetchedAt(session.fetchedAt);
   };
 
@@ -202,9 +206,18 @@ export default function Dashboard() {
       setFetchedAt(at);
 
       let nextAdvice: AnalyzePayload | null = cached?.advice ?? null;
-      if ((matchJson.config?.hasCoachAi ?? matchJson.config?.hasGeminiKey) && (matchJson.matches?.length ?? 0) > 0) {
+      const hasCoach = Boolean(matchJson.config?.hasCoachAi ?? matchJson.config?.hasGeminiKey);
+      const sameSample =
+        Boolean(cached?.advice?.ok && adviceIsUsable(cached.advice.advice)) &&
+        matchFingerprint(matchJson.matches) === matchFingerprint(cached?.matches.matches);
+      if (hasCoach && (matchJson.matches?.length ?? 0) > 0 && sameSample && !force) {
+        setAdvice(cached!.advice);
+        nextAdvice = cached!.advice;
+        setNotesAge("same");
+        setCoaching(false);
+      } else if (hasCoach && (matchJson.matches?.length ?? 0) > 0) {
         setCoaching(true);
-        setNotesFresh(false);
+        setNotesAge("old");
         if (cached?.advice?.ok && adviceIsUsable(cached.advice.advice)) {
           setAdvice(cached.advice);
         } else {
@@ -217,31 +230,32 @@ export default function Dashboard() {
             name: parsed.name,
             tag: parsed.tag,
             region: nextRegion,
-            refresh: false,
+            refresh: force,
           }),
         });
         nextAdvice = (await analyzeRes.json()) as AnalyzePayload;
         const incomingUsable = nextAdvice.ok && adviceIsUsable(nextAdvice.advice);
-        const previousUsable = Boolean(cached?.advice?.ok && adviceIsUsable(cached.advice?.advice));
+        const previous = cached?.advice;
+        const previousUsable = Boolean(previous?.ok && adviceIsUsable(previous.advice));
         if (incomingUsable) {
           setAdvice(nextAdvice);
-          setNotesFresh(true);
-        } else if (previousUsable && cached?.advice) {
+          setNotesAge(adviceLooksSame(nextAdvice.advice, previous?.advice) ? "same" : "new");
+        } else if (previousUsable && previous) {
           setAdvice({
-            ...cached.advice,
+            ...previous,
             error: "Gemini didn't return new notes. Showing your last good notes.",
           });
-          nextAdvice = cached.advice;
-          setNotesFresh(false);
+          nextAdvice = previous;
+          setNotesAge("old");
         } else {
           setAdvice(nextAdvice);
-          setNotesFresh(false);
+          setNotesAge("old");
         }
         setCoaching(false);
       } else {
         nextAdvice = null;
         setAdvice(null);
-        setNotesFresh(false);
+        setNotesAge("old");
         setCoaching(false);
       }
 
@@ -579,7 +593,7 @@ export default function Dashboard() {
                 </div>
                 {advice?.advice ? (
                   <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--muted)]">
-                    {notesFresh && !coaching ? "New notes" : "Old notes"}
+                    {coaching ? "Old notes" : notesAge === "new" ? "New notes" : notesAge === "same" ? "Same notes" : "Old notes"}
                   </span>
                 ) : null}
               </div>
