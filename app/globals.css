@@ -387,6 +387,55 @@ body {
   transition: opacity 0.25s ease, filter 0.25s ease;
 }
 
+.rating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating-score {
+  font-size: 1.05rem;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.rating-tier {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.rating-shape {
+  width: 0.72rem;
+  height: 0.72rem;
+  display: inline-block;
+  box-shadow: 0 0 10px color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.rating-shape-hex {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+.rating-shape-diamond {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+.rating-shape-square {
+  clip-path: polygon(12% 12%, 88% 12%, 88% 88%, 12% 88%);
+  border-radius: 2px;
+}
+
+.rating-shape-circle {
+  border-radius: 999px;
+}
+
+.rating-shape-octagon {
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-up,
   .coach-orb,

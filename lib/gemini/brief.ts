@@ -27,7 +27,7 @@ function prune(value: unknown): unknown {
 }
 
 function poolLine(name: string, stats: PoolRate) {
-  return `${name} ${stats.games}g ${stats.winRate}% WR ${stats.avgAcs} ACS`;
+  return `${name} ${stats.games}g ${stats.winRate}% WR ${stats.avgAcs} ACS ${stats.rating}/1000`;
 }
 
 function notablePools(rates: Record<string, PoolRate>, keep: Array<string | null | undefined>, limit = 4) {

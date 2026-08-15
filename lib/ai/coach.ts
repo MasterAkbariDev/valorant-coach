@@ -1,6 +1,7 @@
 import { chatCompletion, providerError } from "@/lib/ai/openai";
 import { generateContentWithFallback, isQuotaError } from "@/lib/gemini/generate";
 import { adviceSchema } from "@/lib/gemini/prompts";
+import { geminiKeys } from "@/lib/env";
 
 type CoachArgs = {
   system: string;
@@ -61,9 +62,10 @@ export async function generateCoachText(args: CoachArgs) {
   const groqKey = process.env.GROQ_API_KEY?.trim();
   const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim();
   const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
-  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+  const mistralKey = process.env.MISTRAL_API_KEY?.trim();
+  const hasGemini = geminiKeys().length > 0;
 
-  if (geminiKey) {
+  if (hasGemini) {
     try {
       const result = await generateContentWithFallback({
         contents: args.user,
@@ -90,7 +92,12 @@ export async function generateCoachText(args: CoachArgs) {
         label: "groq",
         url: "https://api.groq.com/openai/v1/chat/completions",
         apiKey: groqKey,
-        models: envList(process.env.GROQ_MODELS, ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]),
+        models: envList(process.env.GROQ_MODELS, [
+          "moonshotai/kimi-k2-instruct",
+          "openai/gpt-oss-120b",
+          "llama-3.3-70b-versatile",
+          "llama-3.1-8b-instant",
+        ]),
         system: args.system,
         user: args.user,
         accept: args.accept,
@@ -123,6 +130,8 @@ export async function generateCoachText(args: CoachArgs) {
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterKey,
         models: envList(process.env.OPENROUTER_MODELS, [
+          "google/gemini-2.5-flash:free",
+          "google/gemini-2.0-flash-exp:free",
           "meta-llama/llama-3.3-70b-instruct:free",
           "google/gemma-3-27b-it:free",
         ]),
@@ -139,7 +148,23 @@ export async function generateCoachText(args: CoachArgs) {
     }
   }
 
-  if (geminiKey) {
+  if (mistralKey) {
+    try {
+      return await tryOpenAi({
+        label: "mistral",
+        url: "https://api.mistral.ai/v1/chat/completions",
+        apiKey: mistralKey,
+        models: envList(process.env.MISTRAL_MODELS, ["mistral-small-latest"]),
+        system: args.system,
+        user: args.user,
+        accept: args.accept,
+      });
+    } catch (error) {
+      errors.push(`mistral: ${providerError(error)}`);
+    }
+  }
+
+  if (hasGemini) {
     try {
       return await generateContentWithFallback({
         contents: args.user,

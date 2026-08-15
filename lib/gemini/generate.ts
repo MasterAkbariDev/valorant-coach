@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { requireGeminiKey } from "@/lib/env";
+import { geminiKeys, requireGeminiKey } from "@/lib/env";
 
 const CAPABLE_MODELS = [
   "gemini-3.6-flash",
@@ -13,6 +13,7 @@ const CAPABLE_MODELS = [
 const LITE_MODELS = ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-flash-lite-latest"];
 
 let lastGoodModel: string | null = null;
+let lastGoodKey: string | null = null;
 
 function errorText(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -90,7 +91,8 @@ type GenerateArgs = {
 };
 
 export async function generateContentWithFallback(args: GenerateArgs) {
-  const ai = new GoogleGenAI({ apiKey: requireGeminiKey() });
+  const keys = [...new Set([lastGoodKey, ...geminiKeys()].filter(Boolean) as string[])];
+  if (!keys.length) requireGeminiKey();
   const models = geminiModelQueue(args.skipLite);
   if (!models.length) {
     throw new Error("No Gemini models available");
@@ -98,49 +100,61 @@ export async function generateContentWithFallback(args: GenerateArgs) {
   let lastError: unknown;
 
   for (const model of models) {
-    const configs: Record<string, unknown>[] = [withOutputBudget(args.config)];
-    if (args.config?.responseSchema) {
-      const { responseMimeType: _mime, responseSchema: _schema, ...rest } = args.config;
-      configs.push(withOutputBudget(rest));
-    }
-
-    for (const config of configs) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: args.contents as never,
-          config,
-        });
-        const text = extractModelText(response);
-        if (looksUnusable(text, args.accept)) {
-          lastError = new Error("Model returned empty notes");
-          continue;
-        }
-        lastGoodModel = model;
-        return { response, model, text };
-      } catch (error) {
-        lastError = error;
-        if (isThinkingUnsupported(error)) {
-          try {
-            const { thinkingConfig: _thinking, ...rest } = config;
-            const response = await ai.models.generateContent({
-              model,
-              contents: args.contents as never,
-              config: rest,
-            });
-            const text = extractModelText(response);
-            if (looksUnusable(text, args.accept)) {
-              lastError = new Error("Model returned empty notes");
-              continue;
-            }
-            lastGoodModel = model;
-            return { response, model, text };
-          } catch (retryError) {
-            lastError = retryError;
-          }
-        }
-        if (isQuotaError(error) || isModelUnavailable(error)) break;
+    for (const apiKey of keys) {
+      const ai = new GoogleGenAI({ apiKey });
+      const configs: Record<string, unknown>[] = [withOutputBudget(args.config)];
+      if (args.config?.responseSchema) {
+        const { responseMimeType: _mime, responseSchema: _schema, ...rest } = args.config;
+        configs.push(withOutputBudget(rest));
       }
+
+      let keyQuota = false;
+      for (const config of configs) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: args.contents as never,
+            config,
+          });
+          const text = extractModelText(response);
+          if (looksUnusable(text, args.accept)) {
+            lastError = new Error("Model returned empty notes");
+            continue;
+          }
+          lastGoodModel = model;
+          lastGoodKey = apiKey;
+          return { response, model, text };
+        } catch (error) {
+          lastError = error;
+          if (isThinkingUnsupported(error)) {
+            try {
+              const { thinkingConfig: _thinking, ...rest } = config;
+              const response = await ai.models.generateContent({
+                model,
+                contents: args.contents as never,
+                config: rest,
+              });
+              const text = extractModelText(response);
+              if (looksUnusable(text, args.accept)) {
+                lastError = new Error("Model returned empty notes");
+                continue;
+              }
+              lastGoodModel = model;
+              lastGoodKey = apiKey;
+              return { response, model, text };
+            } catch (retryError) {
+              lastError = retryError;
+              if (isQuotaError(retryError)) keyQuota = true;
+            }
+          }
+          if (isQuotaError(error)) {
+            keyQuota = true;
+            break;
+          }
+          if (isModelUnavailable(error)) break;
+        }
+      }
+      if (!keyQuota && isModelUnavailable(lastError)) break;
     }
   }
 

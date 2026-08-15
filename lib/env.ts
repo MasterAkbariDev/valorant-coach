@@ -2,13 +2,24 @@ import type { PlayerIdentity, RiotRegion } from "@/types/valorant";
 
 const REGIONS: RiotRegion[] = ["eu", "na", "ap", "kr", "latam", "br"];
 
+export function geminiKeys() {
+  const numbered = [2, 3, 4, 5, 6, 7, 8].map((index) => process.env[`GEMINI_API_KEY_${index}`]?.trim());
+  const listed = (process.env.GEMINI_API_KEYS ?? "")
+    .split(/[,;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return [...new Set([process.env.GEMINI_API_KEY?.trim(), ...numbered, ...listed].filter(Boolean) as string[])];
+}
+
 export function getPublicConfig() {
-  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
+  const keys = geminiKeys();
+  const hasGeminiKey = keys.length > 0;
   const hasCoachAi = Boolean(
-    process.env.GEMINI_API_KEY?.trim() ||
+    hasGeminiKey ||
       process.env.GROQ_API_KEY?.trim() ||
       process.env.CEREBRAS_API_KEY?.trim() ||
-      process.env.OPENROUTER_API_KEY?.trim(),
+      process.env.OPENROUTER_API_KEY?.trim() ||
+      process.env.MISTRAL_API_KEY?.trim(),
   );
   return {
     riotName: process.env.RIOT_NAME ?? "",
@@ -53,7 +64,7 @@ export function resolveIdentity(input?: {
 }
 
 export function requireGeminiKey() {
-  const key = process.env.GEMINI_API_KEY;
+  const key = geminiKeys()[0];
   if (!key) {
     throw new Error("GEMINI_API_KEY is not set. Add it to .env.local");
   }

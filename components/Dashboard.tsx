@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader, { applyTheme } from "@/components/AppHeader";
 import CoachLoading, { SearchLoading } from "@/components/CoachLoading";
+import RatingBadge from "@/components/RatingBadge";
 import { AbilityCasts, AgentPortrait, MapThumb, RankIcon, agentRole } from "@/components/ValorantMedia";
 import { useValorantContent } from "@/hooks/useValorantContent";
 import { adviceIsUsable } from "@/lib/gemini/advice";
 import { regionLabel, REGION_OPTIONS } from "@/lib/regions";
+import { poolRating, ratingMeta } from "@/lib/stats/rating";
 import {
   LAST_PLAYER_KEY,
   PLAYER_FRESH_MS,
@@ -102,6 +104,7 @@ export default function Dashboard() {
   const [matchesLoading, setMatchesLoading] = useState(true);
   const [coaching, setCoaching] = useState(false);
   const [fromCache, setFromCache] = useState(false);
+  const [notesFresh, setNotesFresh] = useState(false);
   const [fetchedAt, setFetchedAt] = useState(0);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -152,6 +155,7 @@ export default function Dashboard() {
     const stored = session.advice;
     setAdvice(stored?.ok && !adviceIsUsable(stored.advice) ? null : stored);
     setFromCache(cached);
+    setNotesFresh(false);
     setFetchedAt(session.fetchedAt);
   };
 
@@ -200,8 +204,11 @@ export default function Dashboard() {
       let nextAdvice: AnalyzePayload | null = cached?.advice ?? null;
       if ((matchJson.config?.hasCoachAi ?? matchJson.config?.hasGeminiKey) && (matchJson.matches?.length ?? 0) > 0) {
         setCoaching(true);
-        if (!force && cached?.advice?.ok && adviceIsUsable(cached.advice.advice)) {
+        setNotesFresh(false);
+        if (cached?.advice?.ok && adviceIsUsable(cached.advice.advice)) {
           setAdvice(cached.advice);
+        } else {
+          setAdvice(null);
         }
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
@@ -218,19 +225,23 @@ export default function Dashboard() {
         const previousUsable = Boolean(cached?.advice?.ok && adviceIsUsable(cached.advice?.advice));
         if (incomingUsable) {
           setAdvice(nextAdvice);
+          setNotesFresh(true);
         } else if (previousUsable && cached?.advice) {
           setAdvice({
             ...cached.advice,
             error: "Gemini didn't return new notes. Showing your last good notes.",
           });
           nextAdvice = cached.advice;
+          setNotesFresh(false);
         } else {
           setAdvice(nextAdvice);
+          setNotesFresh(false);
         }
         setCoaching(false);
       } else {
         nextAdvice = null;
         setAdvice(null);
+        setNotesFresh(false);
         setCoaching(false);
       }
 
@@ -267,7 +278,6 @@ export default function Dashboard() {
   );
 
   const selectedRegion = REGION_OPTIONS.find((item) => item.id === region);
-  const dimming = matchesLoading || coaching;
 
   return (
     <div className="app-shell">
@@ -367,7 +377,7 @@ export default function Dashboard() {
 
         {matches?.ok ? (
           <>
-            <div className={`flex flex-col gap-7 ${dimming ? "content-dim" : ""}`}>
+            <div className={`flex flex-col gap-7 ${matchesLoading ? "content-dim" : ""}`}>
             <section className="hero-card glass fade-up rounded-2xl">
               <div className="flex flex-wrap items-center gap-5 p-5 sm:p-6">
                 <div className="hero-glow">
@@ -427,6 +437,15 @@ export default function Dashboard() {
                   games: stats.games,
                   winRate: stats.winRate,
                   avgAcs: stats.avgAcs,
+                  rating:
+                    stats.rating ??
+                    poolRating({
+                      games: stats.games,
+                      winRate: stats.winRate,
+                      avgAcs: stats.avgAcs,
+                      kd: stats.kd ?? 1,
+                      avgAdr: stats.avgAdr ?? 140,
+                    }),
                   casts: matches.insights?.abilityAverages[name],
                 }))}
               />
@@ -440,59 +459,20 @@ export default function Dashboard() {
                   games: stats.games,
                   winRate: stats.winRate,
                   avgAcs: stats.avgAcs,
+                  rating:
+                    stats.rating ??
+                    poolRating({
+                      games: stats.games,
+                      winRate: stats.winRate,
+                      avgAcs: stats.avgAcs,
+                      kd: stats.kd ?? 1,
+                      avgAdr: stats.avgAdr ?? 140,
+                    }),
                 }))}
               />
             </section>
-            </div>
 
-            <section className="space-y-4">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--accent)]">Coach notes</p>
-                  <h3 className="display text-2xl font-semibold">What to do next</h3>
-                </div>
-                {!coaching && fromCache && advice?.ok ? (
-                  <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--muted)]">
-                    Saved notes
-                  </span>
-                ) : null}
-              </div>
-              {advice?.error ? (
-                <p className={advice.ok ? "text-[var(--warn)]" : "text-[var(--bad)]"}>{advice.error}</p>
-              ) : null}
-              {coaching ? <CoachLoading /> : null}
-              {coaching && advice?.advice ? (
-                <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">Previous notes while Gemini writes</p>
-              ) : null}
-              {advice?.advice ? (
-                <div className={`space-y-3 ${dimming ? "content-dim" : ""}`}>
-                  <p className="glass rounded-2xl p-5 text-base leading-7">{advice.advice.summary}</p>
-                  <div className="grid gap-3">
-                    {advice.advice.items.map((item) => {
-                      const severity = SEVERITY[item.severity] ?? SEVERITY.improve;
-                      return (
-                        <article
-                          key={item.title}
-                          className="glass glass-hover rounded-2xl p-5"
-                          style={{ borderColor: `color-mix(in srgb, ${severity.color} 45%, transparent)` }}
-                        >
-                          <p className="text-xs font-medium uppercase tracking-[0.16em]" style={{ color: severity.color }}>
-                            {severity.label}
-                          </p>
-                          <h4 className="display mt-1 text-xl font-semibold">{item.title}</h4>
-                          <p className="mt-2 text-sm text-[var(--muted)]">{item.evidence}</p>
-                          <p className="mt-3 text-sm leading-6">{item.suggestion}</p>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : coaching ? null : (
-                <p className="text-[var(--muted)]">No coaching notes for this sample yet.</p>
-              )}
-            </section>
-
-            <section className={dimming ? "content-dim" : undefined}>
+            <section>
               <h3 className="display mb-4 text-2xl font-semibold">Recent competitive games</h3>
               <div className="glass overflow-x-auto rounded-2xl">
                 <table className="min-w-full text-left text-sm">
@@ -540,6 +520,51 @@ export default function Dashboard() {
                 </table>
               </div>
             </section>
+            </div>
+
+            <section className="space-y-4">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--accent)]">Coach notes</p>
+                  <h3 className="display text-2xl font-semibold">What to do next</h3>
+                </div>
+                {advice?.advice ? (
+                  <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--muted)]">
+                    {notesFresh && !coaching ? "New notes" : "Old notes"}
+                  </span>
+                ) : null}
+              </div>
+              {advice?.error ? (
+                <p className={advice.ok ? "text-[var(--warn)]" : "text-[var(--bad)]"}>{advice.error}</p>
+              ) : null}
+              {coaching ? <CoachLoading /> : null}
+              {advice?.advice ? (
+                <div className="space-y-3">
+                  <p className="glass rounded-2xl p-5 text-base leading-7">{advice.advice.summary}</p>
+                  <div className="grid gap-3">
+                    {advice.advice.items.map((item) => {
+                      const severity = SEVERITY[item.severity] ?? SEVERITY.improve;
+                      return (
+                        <article
+                          key={item.title}
+                          className="glass glass-hover rounded-2xl p-5"
+                          style={{ borderColor: `color-mix(in srgb, ${severity.color} 45%, transparent)` }}
+                        >
+                          <p className="text-xs font-medium uppercase tracking-[0.16em]" style={{ color: severity.color }}>
+                            {severity.label}
+                          </p>
+                          <h4 className="display mt-1 text-xl font-semibold">{item.title}</h4>
+                          <p className="mt-2 text-sm text-[var(--muted)]">{item.evidence}</p>
+                          <p className="mt-3 text-sm leading-6">{item.suggestion}</p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : coaching ? null : (
+                <p className="text-[var(--muted)]">No coaching notes for this sample yet.</p>
+              )}
+            </section>
           </>
         ) : null}
 
@@ -571,6 +596,7 @@ function PoolCard({
     games: number;
     winRate: number;
     avgAcs: number;
+    rating: number;
     casts?: {
       ability1?: number | null;
       ability2?: number | null;
@@ -592,21 +618,25 @@ function PoolCard({
                 <MapThumb content={content} name={row.name} className="mt-0.5 h-10 w-[4.75rem] rounded-md object-cover" />
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex justify-between gap-3 text-sm">
+                <div className="flex items-start justify-between gap-3 text-sm">
                   <span>
                     {row.name}
                     {kind === "agent" && agentRole(content, row.name) ? (
                       <span className="ml-2 text-xs text-[var(--muted)]">{agentRole(content, row.name)}</span>
                     ) : null}
                   </span>
-                  <span className="shrink-0 text-[var(--muted)]">
-                    {row.winRate}% · {row.games} {row.games === 1 ? "game" : "games"} · {row.avgAcs} ACS
-                  </span>
+                  <RatingBadge score={row.rating} />
                 </div>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">
+                  {row.winRate}% · {row.games} {row.games === 1 ? "game" : "games"} · {row.avgAcs} ACS
+                </p>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-[linear-gradient(90deg,var(--accent),var(--accent-2))]"
-                    style={{ width: `${Math.min(100, row.winRate)}%` }}
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, row.rating / 10)}%`,
+                      background: ratingMeta(row.rating).color,
+                    }}
                   />
                 </div>
                 {kind === "agent" && row.casts ? (

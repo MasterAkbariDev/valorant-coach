@@ -1,7 +1,16 @@
 import type { CareerSnapshot, MatchSummary } from "@/types/valorant";
+import { poolRating } from "@/lib/stats/rating";
 import { topEntries } from "@/lib/stats/timeline";
 
-export type PoolRate = { games: number; wins: number; winRate: number; avgAcs: number };
+export type PoolRate = {
+  games: number;
+  wins: number;
+  winRate: number;
+  avgAcs: number;
+  kd: number;
+  avgAdr: number;
+  rating: number;
+};
 
 export type AbilityAverages = {
   ability1: number;
@@ -48,12 +57,22 @@ export type RankedInsights = {
   career: CareerSnapshot | null;
 };
 
-function rate(games: number, wins: number, acsTotal: number): PoolRate {
+type PoolBucket = { games: number; wins: number; acs: number; kills: number; deaths: number; adr: number };
+
+function rate(bucket: PoolBucket): PoolRate {
+  const { games, wins, acs, kills, deaths, adr } = bucket;
+  const winRate = games ? Math.round((wins / games) * 1000) / 10 : 0;
+  const avgAcs = games ? Math.round(acs / games) : 0;
+  const kd = deaths ? Math.round((kills / deaths) * 100) / 100 : kills;
+  const avgAdr = games ? Math.round(adr / games) : 0;
   return {
     games,
     wins,
-    winRate: games ? Math.round((wins / games) * 1000) / 10 : 0,
-    avgAcs: games ? Math.round(acsTotal / games) : 0,
+    winRate,
+    avgAcs,
+    kd,
+    avgAdr,
+    rating: poolRating({ games, winRate, avgAcs, kd, avgAdr }),
   };
 }
 
@@ -66,30 +85,26 @@ export function aggregateMatches(matches: MatchSummary[], career?: CareerSnapsho
   const firstBloods = matches.reduce((sum, match) => sum + match.firstBloods, 0);
   const firstDeaths = matches.reduce((sum, match) => sum + match.firstDeaths, 0);
 
-  const agents: Record<string, { games: number; wins: number; acs: number }> = {};
-  const maps: Record<string, { games: number; wins: number; acs: number }> = {};
-  const combos: Record<string, { games: number; wins: number; acs: number }> = {};
+  const agents: Record<string, PoolBucket> = {};
+  const maps: Record<string, PoolBucket> = {};
+  const combos: Record<string, PoolBucket> = {};
   const abilities: Record<string, AbilityAverages & { games: number }> = {};
 
   for (const match of matches) {
-    const agent = agents[match.agent] ?? { games: 0, wins: 0, acs: 0 };
-    agent.games += 1;
-    agent.acs += match.acs;
-    if (match.result === "win") agent.wins += 1;
-    agents[match.agent] = agent;
-
-    const map = maps[match.map] ?? { games: 0, wins: 0, acs: 0 };
-    map.games += 1;
-    map.acs += match.acs;
-    if (match.result === "win") map.wins += 1;
-    maps[match.map] = map;
-
+    const bump = (bucket: PoolBucket | undefined): PoolBucket => {
+      const next = bucket ?? { games: 0, wins: 0, acs: 0, kills: 0, deaths: 0, adr: 0 };
+      next.games += 1;
+      next.acs += match.acs;
+      next.kills += match.kills;
+      next.deaths += match.deaths;
+      next.adr += match.adr ?? 0;
+      if (match.result === "win") next.wins += 1;
+      return next;
+    };
+    agents[match.agent] = bump(agents[match.agent]);
+    maps[match.map] = bump(maps[match.map]);
     const comboKey = `${match.agent} on ${match.map}`;
-    const combo = combos[comboKey] ?? { games: 0, wins: 0, acs: 0 };
-    combo.games += 1;
-    combo.acs += match.acs;
-    if (match.result === "win") combo.wins += 1;
-    combos[comboKey] = combo;
+    combos[comboKey] = bump(combos[comboKey]);
 
     const casts = match.abilityCasts;
     if (casts) {
@@ -110,13 +125,13 @@ export function aggregateMatches(matches: MatchSummary[], career?: CareerSnapsho
   }
 
   const agentWinRates = Object.fromEntries(
-    Object.entries(agents).map(([name, value]) => [name, rate(value.games, value.wins, value.acs)]),
+    Object.entries(agents).map(([name, value]) => [name, rate(value)]),
   );
   const mapWinRates = Object.fromEntries(
-    Object.entries(maps).map(([name, value]) => [name, rate(value.games, value.wins, value.acs)]),
+    Object.entries(maps).map(([name, value]) => [name, rate(value)]),
   );
   const comboWinRates = Object.fromEntries(
-    Object.entries(combos).map(([name, value]) => [name, rate(value.games, value.wins, value.acs)]),
+    Object.entries(combos).map(([name, value]) => [name, rate(value)]),
   );
   const mainAgent =
     Object.entries(agentWinRates).sort((a, b) => b[1].games - a[1].games)[0]?.[0] ?? null;
