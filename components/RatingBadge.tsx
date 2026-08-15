@@ -1,9 +1,19 @@
 import { ratingMeta } from "@/lib/stats/rating";
 
-export default function RatingBadge({ score }: { score: number }) {
+export default function RatingBadge({
+  score,
+  size = "md",
+}: {
+  score: number;
+  size?: "md" | "lg";
+}) {
   const rating = ratingMeta(score);
   return (
-    <span className="rating-badge" style={{ color: rating.color }} title={`Tracker-style rating ${rating.score} · ${rating.tier}`}>
+    <span
+      className={`rating-badge ${size === "lg" ? "rating-badge-lg" : ""}`}
+      style={{ color: rating.color }}
+      title={`Tracker-style rating ${rating.score} · ${rating.tier}`}
+    >
       <span className={`rating-shape rating-shape-${rating.shape}`} style={{ background: rating.color }} aria-hidden="true" />
       <span className="rating-score display">{rating.score}</span>
       <span className="rating-tier">{rating.tier}</span>

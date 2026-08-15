@@ -55,6 +55,7 @@ export type RankedInsights = {
   deathsByTime: { early: number; mid: number; late: number };
   killsByTime: { early: number; mid: number; late: number };
   career: CareerSnapshot | null;
+  rating: number;
 };
 
 type PoolBucket = { games: number; wins: number; acs: number; kills: number; deaths: number; adr: number };
@@ -153,16 +154,21 @@ export function aggregateMatches(matches: MatchSummary[], career?: CareerSnapsho
     streakCount += 1;
   }
 
+  const winRate = sampleSize ? Math.round((wins / sampleSize) * 1000) / 10 : 0;
+  const kd = deaths ? Math.round((kills / deaths) * 100) / 100 : kills;
+  const avgAcs = sampleSize ? Math.round(matches.reduce((sum, match) => sum + match.acs, 0) / sampleSize) : 0;
+  const avgAdr = sampleSize
+    ? Math.round(matches.reduce((sum, match) => sum + (match.adr ?? 0), 0) / sampleSize)
+    : 0;
+
   return {
     sampleSize,
     wins,
     losses,
-    winRate: sampleSize ? Math.round((wins / sampleSize) * 1000) / 10 : 0,
-    kd: deaths ? Math.round((kills / deaths) * 100) / 100 : kills,
-    avgAcs: sampleSize ? Math.round(matches.reduce((sum, match) => sum + match.acs, 0) / sampleSize) : 0,
-    avgAdr: sampleSize
-      ? Math.round(matches.reduce((sum, match) => sum + (match.adr ?? 0), 0) / sampleSize)
-      : 0,
+    winRate,
+    kd,
+    avgAcs,
+    avgAdr,
     avgHeadshotPercent: sampleSize
       ? Math.round((matches.reduce((sum, match) => sum + match.headshotPercent, 0) / sampleSize) * 10) / 10
       : 0,
@@ -236,6 +242,7 @@ export function aggregateMatches(matches: MatchSummary[], career?: CareerSnapsho
       { early: 0, mid: 0, late: 0 },
     ),
     career: career ?? null,
+    rating: poolRating({ games: sampleSize, winRate, avgAcs, kd, avgAdr }),
   };
 }
 

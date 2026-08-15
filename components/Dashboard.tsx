@@ -413,6 +413,55 @@ export default function Dashboard() {
                     </div>
                   ) : null}
                 </div>
+                <aside className="hero-side">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">Player score</p>
+                  <RatingBadge
+                    size="lg"
+                    score={
+                      matches.insights?.rating ??
+                      poolRating({
+                        games: matches.insights?.sampleSize ?? 0,
+                        winRate: matches.insights?.winRate ?? 0,
+                        avgAcs: matches.insights?.avgAcs ?? 0,
+                        kd: matches.insights?.kd ?? 0,
+                        avgAdr: matches.insights?.avgAdr ?? 0,
+                      })
+                    }
+                  />
+                  <p className="mt-1 text-xs text-[var(--muted)]">/ 1000 this sample</p>
+                  <dl className="hero-facts">
+                    <div>
+                      <dt>Peak</dt>
+                      <dd>{matches.career?.peakRank || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Form</dt>
+                      <dd className="hero-form">
+                        {(matches.insights?.form || "—").split("").map((mark, index) => (
+                          <span key={`${mark}-${index}`} className={mark === "W" ? "form-w" : mark === "L" ? "form-l" : ""}>
+                            {mark}
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Streak</dt>
+                      <dd>{matches.insights?.streak && matches.insights.streak !== "none" ? matches.insights.streak : "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>ADR</dt>
+                      <dd>{matches.insights?.avgAdr ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Main</dt>
+                      <dd>{matches.insights?.mainAgent || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Worst map</dt>
+                      <dd>{matches.insights?.worstMap || "—"}</dd>
+                    </div>
+                  </dl>
+                </aside>
               </div>
             </section>
 

@@ -185,6 +185,58 @@ body {
   filter: drop-shadow(0 0 18px var(--glow));
 }
 
+.hero-side {
+  margin-left: auto;
+  min-width: 13.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+}
+
+.hero-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 1rem;
+  margin-top: 0.85rem;
+}
+
+.hero-facts dt {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hero-facts dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.hero-form {
+  display: flex;
+  gap: 0.28rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-w { color: var(--good); }
+.form-l { color: var(--bad); }
+
+.rating-badge-lg .rating-score {
+  font-size: 2rem;
+}
+
+.rating-badge-lg .rating-shape {
+  width: 1rem;
+  height: 1rem;
+}
+
+.rating-badge-lg .rating-tier {
+  font-size: 0.85rem;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #0b0d12;
