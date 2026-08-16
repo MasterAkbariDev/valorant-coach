@@ -567,3 +567,69 @@ select option {
 ::selection {
   background: color-mix(in srgb, var(--accent) 40%, transparent);
 }
+
+.match-row-open {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.match-chevron {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.match-chevron-open {
+  transform: rotate(180deg);
+}
+
+.match-detail {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.match-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-chip-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.match-review-block {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.9rem 1.1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.match-review-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.drill-line {
+  border-top: 1px dashed var(--line);
+  padding-top: 0.65rem;
+  color: var(--muted);
+}
+
+.drill-label {
+  margin-right: 0.5rem;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}

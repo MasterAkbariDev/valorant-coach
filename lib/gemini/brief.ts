@@ -1,5 +1,6 @@
 import { lookupAgent, type ValorantContent } from "@/lib/valorant/content";
 import type { PoolRate, RankedInsights } from "@/lib/stats/aggregate";
+import { matchRating } from "@/lib/stats/rating";
 import type { MatchSummary } from "@/types/valorant";
 
 const SLOT_KEY = {
@@ -136,6 +137,12 @@ export function buildCoachBrief(input: {
   if (insights.avgAdr && insights.avgAdr < 140) {
     flags.push(`ADR ${insights.avgAdr}.`);
   }
+  if (insights.avgDamageDelta < 0) {
+    flags.push(`Negative damage delta: takes ${Math.abs(insights.avgDamageDelta)} more damage per round than dealt.`);
+  }
+  if (insights.multiKillRounds >= 5 && insights.winRate < 50) {
+    flags.push(`${insights.multiKillRounds} multi-kill rounds but only ${insights.winRate}% WR — conversion problem.`);
+  }
   if (insights.isolatedDeaths >= 6) {
     flags.push(`${insights.isolatedDeaths} isolated deaths vs ${insights.supportedDeaths} with help.`);
   }
@@ -161,6 +168,10 @@ export function buildCoachBrief(input: {
         match.roundsWon != null && match.roundsLost != null ? `${match.roundsWon}-${match.roundsLost}` : undefined,
       kda: `${match.kills}/${match.deaths}/${match.assists}`,
       acs: match.acs,
+      adr: match.adr,
+      hs: match.headshotPercent ? `${match.headshotPercent}%` : undefined,
+      rating: matchRating(match),
+      multiKills: timeline?.multiKillRounds || undefined,
       rr: match.rrChange,
       deaths: prune({
         fb: match.firstBloods || undefined,
@@ -189,6 +200,8 @@ export function buildCoachBrief(input: {
       acs: insights.avgAcs,
       adr: insights.avgAdr,
       hs: `${insights.avgHeadshotPercent}%`,
+      damageDelta: insights.avgDamageDelta,
+      multiKillRounds: insights.multiKillRounds,
       plants: insights.plants,
       spend: insights.avgSpent,
       netRr: insights.netRr,

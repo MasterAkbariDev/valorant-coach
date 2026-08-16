@@ -200,6 +200,7 @@ export function normalizeMatch(raw: unknown, identity: PlayerIdentity): MatchDet
       ability_casts: player.ability_casts,
       damage,
       teamId,
+      puuid,
       tier: player.tier,
     },
   };

@@ -51,6 +51,8 @@ export type MatchSummary = {
     deathsByTime: { early: number; mid: number; late: number };
     killsByTime: { early: number; mid: number; late: number };
     worstDeath: string | null;
+    multiKillRounds: number;
+    bestRoundKills: number;
   };
 };
 

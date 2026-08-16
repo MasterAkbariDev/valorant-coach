@@ -50,6 +50,8 @@ export type RankedInsights = {
   abilityAverages: Record<string, AbilityAverages>;
   isolatedDeaths: number;
   supportedDeaths: number;
+  multiKillRounds: number;
+  avgDamageDelta: number;
   deathWeapons: string[];
   killWeapons: string[];
   deathsByTime: { early: number; mid: number; late: number };
@@ -209,6 +211,16 @@ export function aggregateMatches(matches: MatchSummary[], career?: CareerSnapsho
     ),
     isolatedDeaths: matches.reduce((sum, match) => sum + (match.timeline?.isolatedDeaths ?? 0), 0),
     supportedDeaths: matches.reduce((sum, match) => sum + (match.timeline?.supportedDeaths ?? 0), 0),
+    multiKillRounds: matches.reduce((sum, match) => sum + (match.timeline?.multiKillRounds ?? 0), 0),
+    avgDamageDelta: sampleSize
+      ? Math.round(
+          matches.reduce((sum, match) => {
+            const rounds = (match.roundsWon ?? 0) + (match.roundsLost ?? 0);
+            if (!rounds) return sum;
+            return sum + ((match.damageDealt ?? 0) - (match.damageReceived ?? 0)) / rounds;
+          }, 0) / sampleSize,
+        )
+      : 0,
     deathWeapons: topEntries(
       matches.reduce((counts, match) => {
         for (const [weapon, count] of Object.entries(match.timeline?.deathWeapons ?? {})) {

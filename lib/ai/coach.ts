@@ -7,6 +7,8 @@ type CoachArgs = {
   system: string;
   user: string;
   accept?: (text: string) => boolean;
+  /** Gemini structured-output schema. Defaults to the ranked-notes schema. */
+  schema?: Record<string, unknown>;
 };
 
 function envList(value: string | undefined, fallback: string[]) {
@@ -72,7 +74,7 @@ export async function generateCoachText(args: CoachArgs) {
         config: {
           systemInstruction: args.system,
           responseMimeType: "application/json",
-          responseSchema: adviceSchema,
+          responseSchema: args.schema ?? adviceSchema,
           temperature: 0.2,
           maxOutputTokens: 8192,
           thinkingConfig: { thinkingBudget: 0 },
@@ -95,6 +97,7 @@ export async function generateCoachText(args: CoachArgs) {
         models: envList(process.env.GROQ_MODELS, [
           "moonshotai/kimi-k2-instruct",
           "openai/gpt-oss-120b",
+          "qwen/qwen3-32b",
           "llama-3.3-70b-versatile",
           "llama-3.1-8b-instant",
         ]),
@@ -130,6 +133,7 @@ export async function generateCoachText(args: CoachArgs) {
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: openRouterKey,
         models: envList(process.env.OPENROUTER_MODELS, [
+          "deepseek/deepseek-chat-v3-0324:free",
           "google/gemini-2.5-flash:free",
           "google/gemini-2.0-flash-exp:free",
           "meta-llama/llama-3.3-70b-instruct:free",

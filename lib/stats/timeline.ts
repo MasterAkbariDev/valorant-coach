@@ -16,9 +16,18 @@ function str(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function named(value: unknown) {
   const obj = asObj(value);
-  return str(obj.name) || str(obj.id) || "Unknown";
+  const name = str(obj.name);
+  if (name && !UUID_LIKE.test(name)) return name;
+  const type = str(obj.type);
+  if (type === "Weapon") return "an unknown gun";
+  if (type && !UUID_LIKE.test(type)) return type;
+  const id = str(obj.id);
+  if (id && !UUID_LIKE.test(id)) return id;
+  return "an ability";
 }
 
 function point(value: unknown) {
@@ -52,6 +61,8 @@ export type TimelineDigest = {
   deathsByTime: { early: number; mid: number; late: number };
   killsByTime: { early: number; mid: number; late: number };
   worstDeath: string | null;
+  multiKillRounds: number;
+  bestRoundKills: number;
 };
 
 export function emptyTimeline(): TimelineDigest {
@@ -63,6 +74,8 @@ export function emptyTimeline(): TimelineDigest {
     deathsByTime: { early: 0, mid: 0, late: 0 },
     killsByTime: { early: 0, mid: 0, late: 0 },
     worstDeath: null,
+    multiKillRounds: 0,
+    bestRoundKills: 0,
   };
 }
 
@@ -79,6 +92,7 @@ export function extractTimeline(match: unknown, puuid: string, teamId: string): 
   }
 
   const isolated: string[] = [];
+  const killsPerRound = new Map<number, number>();
 
   for (const kill of kills) {
     const killerId = str(asObj(kill.killer).puuid);
@@ -94,6 +108,7 @@ export function extractTimeline(match: unknown, puuid: string, teamId: string): 
     if (killerId === puuid) {
       digest.killsByTime[when] += 1;
       digest.killWeapons[weapon] = (digest.killWeapons[weapon] ?? 0) + 1;
+      killsPerRound.set(round, (killsPerRound.get(round) ?? 0) + 1);
       continue;
     }
 
@@ -128,7 +143,62 @@ export function extractTimeline(match: unknown, puuid: string, teamId: string): 
   }
 
   digest.worstDeath = isolated[0] ?? digest.worstDeath;
+  for (const count of killsPerRound.values()) {
+    if (count >= 2) digest.multiKillRounds += 1;
+    if (count > digest.bestRoundKills) digest.bestRoundKills = count;
+  }
   return digest;
+}
+
+/** Compact chronological kill/death lines for one player, for the per-match AI review. */
+export function extractEvents(killsRaw: unknown[], puuid: string, teamId: string, limit = 40): string[] {
+  const kills = killsRaw.map(asObj);
+  const firstInRound = new Map<number, Json>();
+  for (const kill of kills) {
+    const round = num(kill.round);
+    const existing = firstInRound.get(round);
+    if (!existing || num(kill.time_in_round_in_ms) < num(existing.time_in_round_in_ms)) {
+      firstInRound.set(round, kill);
+    }
+  }
+
+  const events: string[] = [];
+  for (const kill of kills) {
+    const killerId = str(asObj(kill.killer).puuid);
+    const victimId = str(asObj(kill.victim).puuid);
+    if (killerId !== puuid && victimId !== puuid) continue;
+
+    const t = num(kill.time_in_round_in_ms);
+    const round = num(kill.round) + 1;
+    const weapon = named(kill.weapon);
+    const first = firstInRound.get(num(kill.round)) === kill;
+
+    if (killerId === puuid) {
+      const victim = named(asObj(kill.victim).agent) || "enemy";
+      events.push(`R${round} ${clock(t)}${first ? " opener" : ""} killed ${victim} with ${weapon}`);
+      continue;
+    }
+
+    const where = point(kill.location);
+    const teammates = asArr(kill.player_locations)
+      .map(asObj)
+      .filter((row) => {
+        const player = asObj(row.player);
+        if (str(player.puuid) === puuid || str(player.puuid) === killerId) return false;
+        const team = str(player.team) || str(player.team_id);
+        return !team || team === teamId;
+      });
+    let nearby = 0;
+    if (where) {
+      for (const row of teammates) {
+        const loc = point(row.location);
+        if (loc && dist(where, loc) <= NEARBY) nearby += 1;
+      }
+    }
+    const support = where ? (nearby === 0 ? ", no teammate nearby" : `, ${nearby} teammate nearby`) : "";
+    events.push(`R${round} ${clock(t)}${first ? " opener" : ""} died to ${weapon}${support}`);
+  }
+  return events.slice(0, limit);
 }
 
 export function topEntries(counts: Record<string, number>, limit = 3) {

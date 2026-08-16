@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader, { applyTheme } from "@/components/AppHeader";
 import CoachLoading, { SearchLoading } from "@/components/CoachLoading";
 import RatingBadge from "@/components/RatingBadge";
@@ -8,7 +8,8 @@ import { AbilityCasts, AgentPortrait, MapThumb, RankIcon, agentRole } from "@/co
 import { useValorantContent } from "@/hooks/useValorantContent";
 import { adviceIsUsable, adviceLooksSame } from "@/lib/gemini/advice";
 import { regionLabel, REGION_OPTIONS } from "@/lib/regions";
-import { poolRating, ratingMeta } from "@/lib/stats/rating";
+import { matchRating, poolRating, ratingMeta } from "@/lib/stats/rating";
+import type { MatchReview } from "@/types/analysis";
 import {
   LAST_PLAYER_KEY,
   PLAYER_FRESH_MS,
@@ -18,6 +19,7 @@ import {
   writeSession,
   type AnalyzePayload,
   type MatchesPayload,
+  type MatchRow,
   type PlayerSession,
   type ThemeId,
 } from "@/lib/player-session";
@@ -98,6 +100,8 @@ const SEVERITY: Record<string, { label: string; color: string }> = {
   keep: { label: "Keep this", color: "var(--good)" },
 };
 
+type ReviewState = { loading?: boolean; error?: string; review?: MatchReview };
+
 export default function Dashboard() {
   const content = useValorantContent();
   const [theme, setTheme] = useState<ThemeId>("crimson");
@@ -112,6 +116,8 @@ export default function Dashboard() {
   const [fetchedAt, setFetchedAt] = useState(0);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Record<string, ReviewState>>({});
 
   useEffect(() => {
     const storedTheme = localStorage.getItem(THEME_KEY) as ThemeId | null;
@@ -182,6 +188,8 @@ export default function Dashboard() {
     try {
       setFromCache(false);
       setMatchesLoading(true);
+      setExpandedMatch(null);
+      setReviews({});
       const matchRes = await fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -273,6 +281,45 @@ export default function Dashboard() {
       setError(err instanceof Error ? err.message : "Search failed");
     }
   }, []);
+
+  const toggleMatch = useCallback(
+    (matchId: string) => {
+      const opening = expandedMatch !== matchId;
+      setExpandedMatch(opening ? matchId : null);
+      if (!opening) return;
+
+      const identity = matches?.identity;
+      const hasCoach = Boolean(matches?.config?.hasCoachAi ?? matches?.config?.hasGeminiKey);
+      const current = reviews[matchId];
+      if (!identity || !hasCoach || current?.review || current?.loading) return;
+
+      setReviews((prev) => ({ ...prev, [matchId]: { loading: true } }));
+      void fetch("/api/match-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: identity.name,
+          tag: identity.tag,
+          region: identity.region,
+          matchId,
+        }),
+      })
+        .then(async (res) => {
+          const json = (await res.json()) as { ok: boolean; review?: MatchReview; error?: string };
+          setReviews((prev) => ({
+            ...prev,
+            [matchId]: json.ok && json.review ? { review: json.review } : { error: json.error || "Review failed" },
+          }));
+        })
+        .catch((err) => {
+          setReviews((prev) => ({
+            ...prev,
+            [matchId]: { error: err instanceof Error ? err.message : "Review failed" },
+          }));
+        });
+    },
+    [expandedMatch, matches, reviews],
+  );
 
   const player = matches?.identity
     ? formatRiotId(matches.identity.name, matches.identity.tag)
@@ -536,14 +583,17 @@ export default function Dashboard() {
             </section>
 
             <section>
-              <h3 className="display mb-4 text-2xl font-semibold">Recent competitive games</h3>
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <h3 className="display text-2xl font-semibold">Recent competitive games</h3>
+                <p className="text-xs text-[var(--muted)]">Click a game for the AI match review</p>
+              </div>
               <div className="glass overflow-x-auto rounded-2xl">
                 <table className="min-w-full text-left text-sm">
                   <thead className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                     <tr>
-                      {["", "Result", "Map", "Agent", "K / D / A", "Combat score", "Headshot %", "Openers", "RR"].map(
-                        (col) => (
-                          <th key={col || "icon"} className="px-3 py-3 font-medium first:pl-4 last:pr-4">
+                      {["", "Result", "Map", "Agent", "Score", "K / D / A", "Combat score", "Headshot %", "Openers", "RR", ""].map(
+                        (col, index) => (
+                          <th key={`${col || "blank"}-${index}`} className="px-3 py-3 font-medium first:pl-4 last:pr-4">
                             {col}
                           </th>
                         ),
@@ -551,34 +601,60 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {matches.matches?.map((match) => (
-                      <tr key={match.matchId} className="match-row border-t border-[var(--line)]">
-                        <td className="px-3 py-2.5 first:pl-4">
-                          <AgentPortrait content={content} name={match.agent} size={32} />
-                        </td>
-                        <td className={`px-3 py-2.5 font-semibold capitalize result-${match.result}`}>
-                          {match.result}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <span className="inline-flex items-center gap-2">
-                            <MapThumb content={content} name={match.map} />
-                            {match.map}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5">{match.agent}</td>
-                        <td className="px-3 py-2.5 font-mono">
-                          {match.kills}/{match.deaths}/{match.assists}
-                        </td>
-                        <td className="px-3 py-2.5">{match.acs}</td>
-                        <td className="px-3 py-2.5">{match.headshotPercent}%</td>
-                        <td className="px-3 py-2.5">
-                          {match.firstBloods}/{match.firstDeaths}
-                        </td>
-                        <td className="px-3 py-2.5 last:pr-4" style={{ color: rrColor(match.rrChange) }}>
-                          {match.rrChange == null ? "—" : match.rrChange > 0 ? `+${match.rrChange}` : match.rrChange}
-                        </td>
-                      </tr>
-                    ))}
+                    {matches.matches?.map((match) => {
+                      const expanded = expandedMatch === match.matchId;
+                      const state = reviews[match.matchId];
+                      const rating = matchRating(match);
+                      const hasCoach = Boolean(matches.config?.hasCoachAi ?? matches.config?.hasGeminiKey);
+                      return (
+                        <Fragment key={match.matchId}>
+                          <tr
+                            className={`match-row cursor-pointer border-t border-[var(--line)] ${expanded ? "match-row-open" : ""}`}
+                            onClick={() => toggleMatch(match.matchId)}
+                          >
+                            <td className="px-3 py-2.5 first:pl-4">
+                              <AgentPortrait content={content} name={match.agent} size={32} />
+                            </td>
+                            <td className={`px-3 py-2.5 font-semibold capitalize result-${match.result}`}>
+                              {match.result}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className="inline-flex items-center gap-2">
+                                <MapThumb content={content} name={match.map} />
+                                {match.map}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5">{match.agent}</td>
+                            <td className="px-3 py-2.5">
+                              <RatingBadge score={rating} />
+                            </td>
+                            <td className="px-3 py-2.5 font-mono">
+                              {match.kills}/{match.deaths}/{match.assists}
+                            </td>
+                            <td className="px-3 py-2.5">{match.acs}</td>
+                            <td className="px-3 py-2.5">{match.headshotPercent}%</td>
+                            <td className="px-3 py-2.5">
+                              {match.firstBloods}/{match.firstDeaths}
+                            </td>
+                            <td className="px-3 py-2.5" style={{ color: rrColor(match.rrChange) }}>
+                              {match.rrChange == null ? "—" : match.rrChange > 0 ? `+${match.rrChange}` : match.rrChange}
+                            </td>
+                            <td className="px-3 py-2.5 last:pr-4 text-[var(--muted)]">
+                              <span className={`match-chevron ${expanded ? "match-chevron-open" : ""}`} aria-hidden="true">
+                                ▾
+                              </span>
+                            </td>
+                          </tr>
+                          {expanded ? (
+                            <tr className="border-t border-[var(--line)]">
+                              <td colSpan={11} className="match-detail px-4 py-4 sm:px-5">
+                                <MatchDetailPanel match={match} state={state} hasCoach={hasCoach} />
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -619,6 +695,12 @@ export default function Dashboard() {
                           <h4 className="display mt-1 text-xl font-semibold">{item.title}</h4>
                           <p className="mt-2 text-sm text-[var(--muted)]">{item.evidence}</p>
                           <p className="mt-3 text-sm leading-6">{item.suggestion}</p>
+                          {item.drill ? (
+                            <p className="drill-line mt-3 text-sm leading-6">
+                              <span className="drill-label">Drill</span>
+                              {item.drill}
+                            </p>
+                          ) : null}
                         </article>
                       );
                     })}
@@ -639,6 +721,92 @@ export default function Dashboard() {
           <p className="text-xs text-[var(--muted)]">{matches.warnings.join(" · ")}</p>
         ) : null}
       </main>
+    </div>
+  );
+}
+
+function MatchDetailPanel({
+  match,
+  state,
+  hasCoach,
+}: {
+  match: MatchRow;
+  state?: ReviewState;
+  hasCoach: boolean;
+}) {
+  const rounds = (match.roundsWon ?? 0) + (match.roundsLost ?? 0);
+  const dealt = typeof match.damageDealt === "number" ? match.damageDealt : 0;
+  const received = typeof match.damageReceived === "number" ? match.damageReceived : 0;
+  const damageDelta = rounds ? Math.round((dealt - received) / rounds) : null;
+  const chips: { label: string; value: string }[] = [
+    { label: "Score", value: rounds ? `${match.roundsWon}-${match.roundsLost}` : "—" },
+    { label: "ADR", value: match.adr != null ? String(match.adr) : "—" },
+    {
+      label: "Damage Δ / round",
+      value: damageDelta == null ? "—" : damageDelta > 0 ? `+${damageDelta}` : String(damageDelta),
+    },
+    { label: "Plants", value: match.plants != null ? String(match.plants) : "—" },
+    { label: "Untraded deaths", value: match.untradedDeaths != null ? String(match.untradedDeaths) : "—" },
+    { label: "Isolated deaths", value: match.timeline ? String(match.timeline.isolatedDeaths) : "—" },
+    { label: "Multi-kill rounds", value: match.timeline?.multiKillRounds != null ? String(match.timeline.multiKillRounds) : "—" },
+    { label: "Avg spend", value: match.spentAvg != null ? String(Math.round(match.spentAvg)) : "—" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {chips.map((chip) => (
+          <span key={chip.label} className="match-chip">
+            <span className="match-chip-label">{chip.label}</span>
+            {chip.value}
+          </span>
+        ))}
+      </div>
+      {match.timeline?.worstDeath ? (
+        <p className="text-sm text-[var(--muted)]">Worst death: {match.timeline.worstDeath}</p>
+      ) : null}
+
+      {!hasCoach ? (
+        <p className="text-sm text-[var(--muted)]">Add a coach AI key to get a review of this game.</p>
+      ) : state?.loading ? (
+        <div className="flex items-center gap-3 text-sm text-[var(--muted)]">
+          <div className="coach-orb" style={{ width: 24, height: 24 }} aria-hidden="true" />
+          <span>Coach is rewatching this game…</span>
+        </div>
+      ) : state?.error ? (
+        <p className="text-sm text-[var(--bad)]">{state.error}</p>
+      ) : state?.review ? (
+        <div className="space-y-3">
+          <p className="text-sm leading-6">{state.review.summary}</p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="match-review-block">
+              <p className="match-review-heading" style={{ color: "var(--bad)" }}>
+                What went wrong
+              </p>
+              <ul className="mt-2 space-y-2">
+                {state.review.wrong.map((item) => (
+                  <li key={item.title} className="text-sm leading-6">
+                    <span className="font-semibold">{item.title}.</span>{" "}
+                    <span className="text-[var(--muted)]">{item.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="match-review-block">
+              <p className="match-review-heading" style={{ color: "var(--good)" }}>
+                What to do next game
+              </p>
+              <ul className="mt-2 space-y-2">
+                {state.review.actions.map((action) => (
+                  <li key={action} className="text-sm leading-6">
+                    {action}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
