@@ -2,6 +2,11 @@ import type { PlayerIdentity, RiotRegion } from "@/types/valorant";
 
 const REGIONS: RiotRegion[] = ["eu", "na", "ap", "kr", "latam", "br"];
 
+export function aiEnabled() {
+  const raw = process.env.AI_ENABLED?.trim().toLowerCase();
+  return raw !== "false" && raw !== "0" && raw !== "off";
+}
+
 export function geminiKeys() {
   const numbered = [2, 3, 4, 5, 6, 7, 8].map((index) => process.env[`GEMINI_API_KEY_${index}`]?.trim());
   const listed = (process.env.GEMINI_API_KEYS ?? "")
@@ -13,14 +18,16 @@ export function geminiKeys() {
 
 export function getPublicConfig() {
   const keys = geminiKeys();
-  const hasGeminiKey = keys.length > 0;
-  const hasCoachAi = Boolean(
-    hasGeminiKey ||
-      process.env.GROQ_API_KEY?.trim() ||
-      process.env.CEREBRAS_API_KEY?.trim() ||
-      process.env.OPENROUTER_API_KEY?.trim() ||
-      process.env.MISTRAL_API_KEY?.trim(),
-  );
+  const hasGeminiKey = aiEnabled() && keys.length > 0;
+  const hasCoachAi =
+    aiEnabled() &&
+    Boolean(
+      keys.length ||
+        process.env.GROQ_API_KEY?.trim() ||
+        process.env.CEREBRAS_API_KEY?.trim() ||
+        process.env.OPENROUTER_API_KEY?.trim() ||
+        process.env.MISTRAL_API_KEY?.trim(),
+    );
   return {
     riotName: process.env.RIOT_NAME ?? "",
     riotTag: process.env.RIOT_TAG ?? "",

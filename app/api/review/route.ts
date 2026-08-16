@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiEnabled } from "@/lib/env";
 import { reviewDeathClip } from "@/lib/gemini/vision";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,12 @@ const MAX_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
+    if (!aiEnabled()) {
+      return NextResponse.json(
+        { ok: false, error: "Coach AI is disabled (AI_ENABLED=false in .env.local)." },
+        { status: 503 },
+      );
+    }
     const form = await request.formData();
     const file = form.get("clip");
     if (!(file instanceof File)) {

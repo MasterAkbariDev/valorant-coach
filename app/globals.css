@@ -411,6 +411,46 @@ body {
   background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
+.match-table {
+  min-width: 52rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.match-table th,
+.match-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.match-map-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 9.5rem;
+}
+
+.match-map-name,
+.match-agent-name {
+  display: inline-block;
+  max-width: 6.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+@media (min-width: 640px) {
+  .match-map-cell {
+    max-width: none;
+  }
+
+  .match-map-name,
+  .match-agent-name {
+    max-width: none;
+  }
+}
+
 @keyframes match-in {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }

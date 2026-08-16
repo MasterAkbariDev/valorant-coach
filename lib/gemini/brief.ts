@@ -58,6 +58,7 @@ export type CoachBrief = {
   rank?: string;
   peak?: string;
   rr?: number;
+  elo?: number;
   overall?: {
     games?: number;
     record?: string;
@@ -143,6 +144,11 @@ export function buildCoachBrief(input: {
   if (insights.multiKillRounds >= 5 && insights.winRate < 50) {
     flags.push(`${insights.multiKillRounds} multi-kill rounds but only ${insights.winRate}% WR — conversion problem.`);
   }
+  if ((insights.rating ?? 0) >= 550 && insights.netRr < 0) {
+    flags.push(
+      `RR efficiency problem: sample rating ${insights.rating}/1000 but ${insights.netRr} net RR — wins fights, loses rounds.`,
+    );
+  }
   if (insights.isolatedDeaths >= 6) {
     flags.push(`${insights.isolatedDeaths} isolated deaths vs ${insights.supportedDeaths} with help.`);
   }
@@ -190,6 +196,7 @@ export function buildCoachBrief(input: {
     rank: insights.career?.currentRank ?? "Unknown",
     peak: insights.career?.peakRank,
     rr: insights.career?.rankingInTier,
+    elo: insights.career?.elo,
     overall: {
       games: insights.sampleSize,
       record: `${insights.wins}-${insights.losses}`,

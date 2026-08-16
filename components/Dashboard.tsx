@@ -247,7 +247,9 @@ export default function Dashboard() {
         const previousUsable = Boolean(previous?.ok && adviceIsUsable(previous.advice));
         if (incomingUsable) {
           setAdvice(nextAdvice);
-          setNotesAge(adviceLooksSame(nextAdvice.advice, previous?.advice) ? "same" : "new");
+          setNotesAge(
+            nextAdvice.cached || adviceLooksSame(nextAdvice.advice, previous?.advice) ? "same" : "new",
+          );
         } else if (previousUsable && previous) {
           setAdvice({
             ...previous,
@@ -496,6 +498,10 @@ export default function Dashboard() {
                       <dd>{matches.career?.peakRank || "—"}</dd>
                     </div>
                     <div>
+                      <dt>Elo</dt>
+                      <dd>{matches.career?.elo ?? "—"}</dd>
+                    </div>
+                    <div>
                       <dt>Form</dt>
                       <dd className="hero-form">
                         {(matches.insights?.form || "—").split("").map((mark, index) => (
@@ -588,10 +594,10 @@ export default function Dashboard() {
                 <p className="text-xs text-[var(--muted)]">Click a game for the AI match review</p>
               </div>
               <div className="glass overflow-x-auto rounded-2xl">
-                <table className="min-w-full text-left text-sm">
+                <table className="match-table min-w-full text-left text-sm">
                   <thead className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                     <tr>
-                      {["", "Result", "Map", "Agent", "Score", "K / D / A", "Combat score", "Headshot %", "Openers", "RR", ""].map(
+                      {["", "Result", "Rounds", "Map", "Agent", "Score", "K / D / A", "Combat score", "Headshot %", "Openers", "RR", ""].map(
                         (col, index) => (
                           <th key={`${col || "blank"}-${index}`} className="px-3 py-3 font-medium first:pl-4 last:pr-4">
                             {col}
@@ -606,6 +612,10 @@ export default function Dashboard() {
                       const state = reviews[match.matchId];
                       const rating = matchRating(match);
                       const hasCoach = Boolean(matches.config?.hasCoachAi ?? matches.config?.hasGeminiKey);
+                      const roundsLabel =
+                        match.roundsWon != null && match.roundsLost != null
+                          ? `${match.roundsWon}/${match.roundsLost}`
+                          : "—";
                       return (
                         <Fragment key={match.matchId}>
                           <tr
@@ -618,13 +628,16 @@ export default function Dashboard() {
                             <td className={`px-3 py-2.5 font-semibold capitalize result-${match.result}`}>
                               {match.result}
                             </td>
+                            <td className="px-3 py-2.5 font-mono tabular-nums">{roundsLabel}</td>
                             <td className="px-3 py-2.5">
-                              <span className="inline-flex items-center gap-2">
+                              <span className="match-map-cell">
                                 <MapThumb content={content} name={match.map} />
-                                {match.map}
+                                <span className="match-map-name">{match.map}</span>
                               </span>
                             </td>
-                            <td className="px-3 py-2.5">{match.agent}</td>
+                            <td className="px-3 py-2.5">
+                              <span className="match-agent-name">{match.agent}</span>
+                            </td>
                             <td className="px-3 py-2.5">
                               <RatingBadge score={rating} />
                             </td>
@@ -647,7 +660,7 @@ export default function Dashboard() {
                           </tr>
                           {expanded ? (
                             <tr className="border-t border-[var(--line)]">
-                              <td colSpan={11} className="match-detail px-4 py-4 sm:px-5">
+                              <td colSpan={12} className="match-detail px-4 py-4 sm:px-5">
                                 <MatchDetailPanel match={match} state={state} hasCoach={hasCoach} />
                               </td>
                             </tr>

@@ -42,6 +42,9 @@ export type AnalyzePayload = {
   error?: string;
   advice?: MatchAdvice;
   matchCount?: number;
+  /** True when the server returned stored notes without a new AI call. */
+  cached?: boolean;
+  generatedAt?: number;
 };
 
 export type PlayerSession = {
