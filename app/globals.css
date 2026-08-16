@@ -423,6 +423,21 @@ body {
   vertical-align: middle;
 }
 
+.match-table td.match-detail {
+  white-space: normal;
+}
+
+.match-detail {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.match-detail li,
+.match-detail p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .match-map-cell {
   display: inline-flex;
   align-items: center;
@@ -620,10 +635,6 @@ select option {
 
 .match-chevron-open {
   transform: rotate(180deg);
-}
-
-.match-detail {
-  background: rgba(0, 0, 0, 0.22);
 }
 
 .match-chip {

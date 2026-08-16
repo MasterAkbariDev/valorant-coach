@@ -792,7 +792,7 @@ function MatchDetailPanel({
         <div className="space-y-3">
           <p className="text-sm leading-6">{state.review.summary}</p>
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="match-review-block">
+            <div className="match-review-block min-w-0">
               <p className="match-review-heading" style={{ color: "var(--bad)" }}>
                 What went wrong
               </p>
@@ -805,7 +805,7 @@ function MatchDetailPanel({
                 ))}
               </ul>
             </div>
-            <div className="match-review-block">
+            <div className="match-review-block min-w-0">
               <p className="match-review-heading" style={{ color: "var(--good)" }}>
                 What to do next game
               </p>
