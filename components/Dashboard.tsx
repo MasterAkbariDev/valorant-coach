@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import AppHeader, { applyTheme } from "@/components/AppHeader";
 import CoachLoading, { SearchLoading } from "@/components/CoachLoading";
+import EloTimeline from "@/components/EloTimeline";
 import RatingBadge from "@/components/RatingBadge";
 import { AbilityCasts, AgentPortrait, MapThumb, RankIcon, agentRole } from "@/components/ValorantMedia";
 import { useValorantContent } from "@/hooks/useValorantContent";
@@ -498,10 +499,6 @@ export default function Dashboard() {
                       <dd>{matches.career?.peakRank || "—"}</dd>
                     </div>
                     <div>
-                      <dt>Elo</dt>
-                      <dd>{matches.career?.elo ?? "—"}</dd>
-                    </div>
-                    <div>
                       <dt>Form</dt>
                       <dd className="hero-form">
                         {(matches.insights?.form || "—").split("").map((mark, index) => (
@@ -531,6 +528,8 @@ export default function Dashboard() {
                 </aside>
               </div>
             </section>
+
+            <EloTimeline elo={matches.career?.elo} currentRank={rankName} content={content} />
 
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               {STATS.map((stat) => (

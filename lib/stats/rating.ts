@@ -4,15 +4,14 @@ export type RatingMeta = {
   score: number;
   tier: RatingTier;
   color: string;
-  shape: "hex" | "diamond" | "square" | "circle" | "octagon";
 };
 
-const TIER_STYLE: Record<RatingTier, Omit<RatingMeta, "score" | "tier">> = {
-  S: { color: "#4da2ff", shape: "hex" },
-  A: { color: "#3dd68c", shape: "diamond" },
-  B: { color: "#e8b84a", shape: "square" },
-  C: { color: "#9aa0ae", shape: "circle" },
-  D: { color: "#ff6b8a", shape: "octagon" },
+const TIER_COLOR: Record<RatingTier, string> = {
+  S: "#4da2ff",
+  A: "#3dd68c",
+  B: "#e8b84a",
+  C: "#9aa0ae",
+  D: "#ff6b8a",
 };
 
 export function poolRating(input: {
@@ -62,5 +61,5 @@ export function ratingTier(score: number): RatingTier {
 
 export function ratingMeta(score: number): RatingMeta {
   const tier = ratingTier(score);
-  return { score, tier, ...TIER_STYLE[tier] };
+  return { score, tier, color: TIER_COLOR[tier] };
 }
