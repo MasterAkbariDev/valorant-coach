@@ -4,6 +4,8 @@ Personal ranked coach for any Riot ID. Pulls competitive history, scores agents/
 
 No in-game overlay, no Riot password, no client hooks. Match data comes from [HenrikDev](https://docs.henrikdev.xyz/); coaching runs on free AI keys (Gemini first, then Groq / Cerebras / OpenRouter / Mistral).
 
+> **Status:** Experimental personal project. Match data and AI analysis require third-party services and credentials. Ratings are project-defined and should not be interpreted as official rankings.
+
 ## What you get
 
 - **Ranked dashboard** — search `Name#Tag` + region, see RR, form, streak, ADR, and a 0–1000 player score

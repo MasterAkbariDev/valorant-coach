@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-export function StageLoading({
+export function StageLoading(props: { title: string; steps: string[]; hint?: string }) {
+  return <StageLoadingContent key={`${props.title}:${props.steps.length}`} {...props} />;
+}
+
+function StageLoadingContent({
   title,
   steps,
   hint,
@@ -15,8 +19,6 @@ export function StageLoading({
   const [progress, setProgress] = useState(10);
 
   useEffect(() => {
-    setStep(0);
-    setProgress(10);
     const stepTimer = window.setInterval(() => {
       setStep((current) => (current < steps.length - 1 ? current + 1 : current));
     }, 1600);

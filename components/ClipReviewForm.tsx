@@ -35,6 +35,8 @@ export default function ClipReviewForm() {
   useEffect(() => {
     const storedTheme = localStorage.getItem(THEME_KEY) as ThemeId | null;
     if (storedTheme) {
+      // Restore the browser-only preference after hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(storedTheme);
       applyTheme(storedTheme);
     }
