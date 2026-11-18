@@ -1,0 +1,2 @@
+# False positive: an empty example key followed by the next environment setting.
+d7e3d261cf5482fa4db994d5cc1612778a05ad41:.env.example:generic-api-key:17
