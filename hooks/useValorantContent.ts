@@ -15,6 +15,8 @@ export function useValorantContent() {
       if (raw) {
         const parsed = JSON.parse(raw) as { at: number; content: ValorantContent };
         if (parsed.content && Date.now() - parsed.at < CONTENT_TTL) {
+          // Restore browser-only cached data after hydration.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setContent(parsed.content);
         }
       }
