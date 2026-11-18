@@ -116,59 +116,27 @@ export default function Dashboard() {
   const [notesAge, setNotesAge] = useState<"new" | "same" | "old">("old");
   const [fetchedAt, setFetchedAt] = useState(0);
   const [error, setError] = useState("");
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Record<string, ReviewState>>({});
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem(THEME_KEY) as ThemeId | null;
-    if (storedTheme) {
-      setTheme(storedTheme);
-      applyTheme(storedTheme);
-    }
-    const last = localStorage.getItem(LAST_PLAYER_KEY);
-    let nextId = riotId;
-    let nextRegion = region;
-    if (last) {
-      try {
-        const parsed = JSON.parse(last) as { riotId?: string; region?: string };
-        if (parsed.riotId) nextId = parsed.riotId;
-        if (parsed.region) nextRegion = parsed.region;
-      } catch {
-        /* ignore */
-      }
-    }
-    setRiotId(nextId);
-    setRegion(nextRegion);
-    const parsed = parseRiotId(nextId);
-    if (parsed.name && parsed.tag) {
-      const session = readSession(parsed.name, parsed.tag, nextRegion);
-      if (session) {
-        applySession(session, true);
-        setMatchesLoading(false);
-        if (!sessionIsFresh(session)) void searchPlayer(nextId, nextRegion, false);
-        return;
-      }
-      void searchPlayer(nextId, nextRegion, false);
-      return;
-    }
-    setMatchesLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
+    const initial = window.setTimeout(() => setNow(Date.now()), 0);
     const timer = window.setInterval(() => setNow(Date.now()), 15000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
   }, []);
 
-  const applySession = (session: PlayerSession, cached: boolean) => {
+  const applySession = useCallback((session: PlayerSession, cached: boolean) => {
     setMatches(session.matches);
     const stored = session.advice;
     setAdvice(stored?.ok && !adviceIsUsable(stored.advice) ? null : stored);
     setFromCache(cached);
     setNotesAge("old");
     setFetchedAt(session.fetchedAt);
-  };
+  }, []);
 
   const searchPlayer = useCallback(async (id: string, nextRegion: string, force: boolean) => {
     const parsed = parseRiotId(id);
@@ -283,7 +251,45 @@ export default function Dashboard() {
       setCoaching(false);
       setError(err instanceof Error ? err.message : "Search failed");
     }
-  }, []);
+  }, [applySession]);
+
+  // Restore browser-only preferences and cached data after hydration.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const storedTheme = localStorage.getItem(THEME_KEY) as ThemeId | null;
+    if (storedTheme) {
+      setTheme(storedTheme);
+      applyTheme(storedTheme);
+    }
+    const last = localStorage.getItem(LAST_PLAYER_KEY);
+    let nextId = "";
+    let nextRegion = "eu";
+    if (last) {
+      try {
+        const parsed = JSON.parse(last) as { riotId?: string; region?: string };
+        if (parsed.riotId) nextId = parsed.riotId;
+        if (parsed.region) nextRegion = parsed.region;
+      } catch {
+        /* ignore */
+      }
+    }
+    setRiotId(nextId);
+    setRegion(nextRegion);
+    const parsed = parseRiotId(nextId);
+    if (parsed.name && parsed.tag) {
+      const session = readSession(parsed.name, parsed.tag, nextRegion);
+      if (session) {
+        applySession(session, true);
+        setMatchesLoading(false);
+        if (!sessionIsFresh(session)) void searchPlayer(nextId, nextRegion, false);
+        return;
+      }
+      void searchPlayer(nextId, nextRegion, false);
+      return;
+    }
+    setMatchesLoading(false);
+  }, [applySession, searchPlayer]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggleMatch = useCallback(
     (matchId: string) => {
